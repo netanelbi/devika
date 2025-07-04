@@ -16,6 +16,9 @@ RUN curl -fsSL https://astral.sh/uv/install.sh | sudo -E bash -
 RUN $HOME/.cargo/bin/uv venv
 ENV PATH="/home/nonroot/devika/.venv/bin:$HOME/.cargo/bin:$PATH"
 
+
+RUN git init /home/nonroot/devika && \
+    cp -n /home/nonroot/devika/sample.config.toml /home/nonroot/devika/config.toml
 # copy devika python engine only
 RUN $HOME/.cargo/bin/uv venv
 COPY requirements.txt /home/nonroot/devika/
