@@ -12,7 +12,14 @@ ENV PYTHONDONTWRITEBYTECODE 1
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get install -y build-essential software-properties-common curl sudo wget git
 RUN apt-get install -y python3 python3-pip
-RUN curl -fsSL https://astral.sh/uv/install.sh | sudo -E bash -
+# Install system dependencies (including git!)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential curl sudo wget git python3 python3-pip && \
+    rm -rf /var/lib/apt/lists/*
+# Install Astral’s `uv` tool so $HOME/.cargo/bin/uv exists
+RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+
 RUN $HOME/.cargo/bin/uv venv
 ENV PATH="/home/nonroot/devika/.venv/bin:$HOME/.cargo/bin:$PATH"
 
