@@ -1,48 +1,41 @@
-FROM debian:12
+# ──────────────── Base Image ────────────────
+FROM python:3.11-bookworm
 
-# setting up os env
-USER root
+# ─────────── Create App Directory ────────────
 WORKDIR /home/nonroot/devika
-RUN groupadd -r nonroot && useradd -r -g nonroot -d /home/nonroot/devika -s /bin/bash nonroot
 
-ENV PYTHONUNBUFFERED 1
-ENV PYTHONDONTWRITEBYTECODE 1
-
-# setting up python3
-RUN apt-get update && apt-get upgrade -y
-RUN apt-get install -y build-essential software-properties-common curl sudo wget git
-RUN apt-get install -y python3 python3-pip
-# Install system dependencies (including git!)
+# ─────── Install System Dependencies ────────
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      build-essential curl sudo wget git python3 python3-pip && \
+      build-essential \
+      curl \
+      git && \
     rm -rf /var/lib/apt/lists/*
-# Install Astral’s `uv` tool so $HOME/.cargo/bin/uv exists
+
+# ───────── Install Astral’s uv Tool ─────────
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh
 
-RUN $HOME/.cargo/bin/uv venv
-ENV PATH="/home/nonroot/devika/.venv/bin:$HOME/.cargo/bin:$PATH"
+# ───────── Create Python venv via uv ─────────
+# now that 'uv' is present, this will succeed
+RUN /root/.cargo/bin/uv venv
 
+# ─── Update PATH to include both venv & uv ────
+ENV PATH="/home/nonroot/devika/.venv/bin:/root/.cargo/bin:${PATH}"
 
-RUN git init /home/nonroot/devika && \
-    cp -n /home/nonroot/devika/sample.config.toml /home/nonroot/devika/config.toml
-# copy devika python engine only
-RUN $HOME/.cargo/bin/uv venv
-COPY requirements.txt /home/nonroot/devika/
-RUN UV_HTTP_TIMEOUT=100000 $HOME/.cargo/bin/uv pip install -r requirements.txt 
+# ─────── Copy Source & Generate Config ───────
+COPY . .
+# Copy sample → config so we never hit a missing-file error
+RUN cp -n sample.config.toml config.toml
 
-RUN playwright install-deps chromium
-RUN playwright install chromium
+# ─────────── Install Python Deps ────────────
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-COPY src /home/nonroot/devika/src
-COPY config.toml /home/nonroot/devika/
-COPY sample.config.toml /home/nonroot/devika/
-COPY devika.py /home/nonroot/devika/
-RUN chown -R nonroot:nonroot /home/nonroot/devika
+# ─────────── Install Playwright ─────────────
+RUN pip install --no-cache-dir playwright && \
+    playwright install-deps chromium && \
+    playwright install chromium
 
-USER nonroot
-WORKDIR /home/nonroot/devika
-ENV PATH="/home/nonroot/devika/.venv/bin:$HOME/.cargo/bin:$PATH"
-RUN mkdir /home/nonroot/devika/db
-
-ENTRYPOINT [ "python3", "-m", "devika" ]
+# ─────────────── Expose & Run ───────────────
+EXPOSE 1337
+ENTRYPOINT ["python3", "-m", "devika"]
