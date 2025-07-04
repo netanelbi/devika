@@ -1,41 +1,63 @@
-# ──────────────── Base Image ────────────────
+# ─────────────── Base Image ────────────────
 FROM python:3.11-bookworm
 
-# ─────────── Create App Directory ────────────
+# ───────── Create nonroot User ──────────────
+RUN groupadd -r nonroot \
+ && useradd -r -g nonroot -d /home/nonroot/devika -s /bin/bash nonroot
+
 WORKDIR /home/nonroot/devika
 
-# ─────── Install System Dependencies ────────
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+# ───── Install System Dependencies ──────────
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
       build-essential \
       curl \
-      git && \
-    rm -rf /var/lib/apt/lists/*
+      git \
+      python3-venv \
+      python3-pip \
+      libnss3 \
+      libatk1.0-0 \
+      libatk-bridge2.0-0 \
+      libcups2 \
+      libdrm2 \
+      libxkbcommon0 \
+      libxcomposite1 \
+      libxrandr2 \
+      libgbm1 \
+      libasound2 \
+      libpangocairo-1.0-0 \
+      libpango-1.0-0 \
+      libgtk-3-0 \
+      libxshmfence1 \
+      libxcb1 \
+ && rm -rf /var/lib/apt/lists/*
 
-# ───────── Install Astral’s uv Tool ─────────
-RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+# ─────────── Create & Activate venv ─────────
+RUN python3 -m venv .venv
+ENV PATH="/home/nonroot/devika/.venv/bin:${PATH}"
 
-# ───────── Create Python venv via uv ─────────
-# now that 'uv' is present, this will succeed
-RUN /root/.cargo/bin/uv venv
-
-# ─── Update PATH to include both venv & uv ────
-ENV PATH="/home/nonroot/devika/.venv/bin:/root/.cargo/bin:${PATH}"
-
-# ─────── Copy Source & Generate Config ───────
-COPY . .
-# Copy sample → config so we never hit a missing-file error
+# ─────────── Copy & Prepare Config ──────────
+COPY sample.config.toml .
 RUN cp -n sample.config.toml config.toml
 
-# ─────────── Install Python Deps ────────────
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# ────────── Copy App & Install Deps ─────────
+COPY requirements.txt .
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
 
-# ─────────── Install Playwright ─────────────
-RUN pip install --no-cache-dir playwright && \
-    playwright install-deps chromium && \
-    playwright install chromium
+# ──────────── Install Playwright ────────────
+RUN pip install --no-cache-dir playwright \
+ && playwright install-deps chromium \
+ && playwright install chromium
 
-# ─────────────── Expose & Run ───────────────
+# ─────────── Copy App Code ──────────────────
+COPY src ./src
+COPY devika.py .
+
+# ────────── Fix Permissions & Switch ────────
+RUN chown -R nonroot:nonroot /home/nonroot/devika
+USER nonroot
+
+# ───────────── Expose & Entrypoint ──────────
 EXPOSE 1337
 ENTRYPOINT ["python3", "-m", "devika"]
